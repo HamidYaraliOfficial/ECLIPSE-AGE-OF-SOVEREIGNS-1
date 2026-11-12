@@ -1,0 +1,1 @@
+{"name":"eclipse-age-of-sovereigns","version":"0.1.0","type":"module","author":"Hamid Yarali","license":"SEE LICENSE IN LICENSE","scripts":{"test":"node --test tests/","start":"npx http-server . -p 8080"}}
