@@ -1,0 +1,16 @@
+import test from 'node:test'; import assert from 'node:assert/strict';
+import * as S from '../src/sim.js';
+test('economy tick', () => { const g = S.newGame(1), m = g.nations[0].money; S.tick(g); assert.notEqual(g.nations[0].money, m); assert.equal(g.turn, 2); });
+test('energy shortage slows economy', () => { const a = S.newGame(1), b = S.newGame(1); b.cities.forEach(c => c.b.plant = 0); S.tick(a); S.tick(b); assert.ok(b.nations[0].ef < a.nations[0].ef); assert.ok(b.nations[0].money < a.nations[0].money); });
+test('food shortage lowers happiness', () => { const g = S.newGame(1); g.cities.forEach(c => c.b.farm = 0); g.nations[0].food = 0; const h = g.cities[0].happy; S.tick(g); assert.ok(g.cities[0].happy < h); });
+test('build costs money', () => { const g = S.newGame(1); assert.ok(S.build(g, 0, 0, 'farm').ok); g.nations[0].money = 0; assert.equal(S.build(g, 0, 0, 'farm').ok, false); });
+test('tech prerequisites', () => { const g = S.newGame(1); assert.equal(S.startResearch(g, 0, 'mech').ok, false); assert.ok(S.startResearch(g, 0, 'eng').ok); for (let i = 0; i < 40 && !g.nations[0].done.includes('eng'); i++) S.tick(g); assert.ok(g.nations[0].done.includes('eng')); });
+test('combat needs war; strong side wins', () => { const g = S.newGame(3); assert.equal(S.attack(g, 0, 2).ok, false); S.declareWar(g, 0, 1); g.nations[0].units = 200; g.nations[0].iron = 999; assert.ok(S.attack(g, 0, 2).ok); assert.equal(g.cities[2].nat, 0); });
+test('AI remembers war, refuses trade', () => { const g = S.newGame(1); S.declareWar(g, 0, 2); S.proposePeace(g, 0, 2); assert.equal(S.proposeTrade(g, 0, 2).ok, false); });
+test('trade with friendly nation', () => { const g = S.newGame(1); g.nations[2].rel[0] = 30; assert.ok(S.proposeTrade(g, 0, 2).ok); });
+test('deterministic sim with AI', () => { const run = () => { const g = S.newGame(7); for (let i = 0; i < 60; i++) S.tick(g); return JSON.stringify(g); }; assert.equal(run(), run()); });
+test('population sane over 100 turns', () => { const g = S.newGame(5); for (let i = 0; i < 100; i++) S.tick(g); g.cities.forEach(c => assert.ok(Number.isFinite(c.pop) && c.pop > 0)); });
+test('save roundtrip + corruption safety', () => { const g = S.newGame(2); S.tick(g); const t = S.serialize(g); assert.deepEqual(S.deserialize(t).game, g);
+  for (const bad of ['', '{', 'null', (()=>{const f=JSON.parse(t);f.body=f.body.replace('Aurelia','Hacked');return JSON.stringify(f)})(), JSON.stringify({ v: 99, body: '{}' })]) assert.equal(S.deserialize(bad).ok, false); });
+test('recruit & tax clamp', () => { const g = S.newGame(1); assert.ok(S.recruit(g, 0).ok); S.setTax(g, 0, 9); assert.equal(g.nations[0].tax, .5); });
+test('events fire from state and honour cooldown', () => { const g = S.newGame(1); g.cities.forEach(c => c.b.plant = 0); for (let i = 0; i < 60; i++) S.tick(g); assert.ok(g.cd['0:blackout'] > 0); });
